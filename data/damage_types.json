@@ -1,0 +1,36 @@
+{
+  "_comment": "Типы урона D&D 5e. Ключи соответствуют системе dnd5e в Foundry VTT (заносятся в массивы system.traits.dr/di/dv).",
+  "damage_types": [
+    {"key": "acid",        "name": "Кислота"},
+    {"key": "bludgeoning", "name": "Дробящий"},
+    {"key": "cold",        "name": "Холод"},
+    {"key": "fire",        "name": "Огонь"},
+    {"key": "force",       "name": "Силовое поле"},
+    {"key": "lightning",   "name": "Электричество"},
+    {"key": "necrotic",    "name": "Некротический"},
+    {"key": "piercing",    "name": "Колющий"},
+    {"key": "poison",      "name": "Яд"},
+    {"key": "psychic",     "name": "Психический"},
+    {"key": "radiant",     "name": "Излучение"},
+    {"key": "slashing",    "name": "Рубящий"},
+    {"key": "thunder",     "name": "Звук"}
+  ],
+  "_comment_conditions": "Состояния D&D 5e. Записываются в system.traits.ci.value (невосприимчивость к состояниям). Устойчивости к состояниям правилами 5e не предусмотрены.",
+  "conditions": [
+    {"key": "blinded",       "name": "Ослеплён"},
+    {"key": "charmed",       "name": "Очарован"},
+    {"key": "deafened",      "name": "Оглушён"},
+    {"key": "exhaustion",    "name": "Истощение"},
+    {"key": "frightened",    "name": "Испуган"},
+    {"key": "grappled",      "name": "Схвачен"},
+    {"key": "incapacitated", "name": "Недееспособен"},
+    {"key": "invisible",     "name": "Невидим"},
+    {"key": "paralyzed",     "name": "Парализован"},
+    {"key": "petrified",     "name": "Окаменевший"},
+    {"key": "poisoned",      "name": "Отравлен"},
+    {"key": "prone",         "name": "Лежит ничком"},
+    {"key": "restrained",    "name": "Опутан"},
+    {"key": "stunned",       "name": "Ошеломлён"},
+    {"key": "unconscious",   "name": "Без сознания"}
+  ]
+}
