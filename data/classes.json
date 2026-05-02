@@ -1,14 +1,14 @@
 {
   "_comment": "Справочник классов D&D 5e. Поля: base_ac — базовый КД для класса, hp_multiplier — множитель к усреднённому HP по CR (танкам >1, скваишам <1), ac_modifier — постоянная добавка к ac_base из cr_scaling, ability_priority — порядок приоритета характеристик (primary/secondary/tertiary/остальное → dump), caster_type — full/half/third/pact/none.",
   "classes": [
-    {"key": "barbarian", "name": "Варвар",       "base_ac": 14, "ac_modifier": 0,  "hp_multiplier": 1.20, "hit_die": "d12", "ability_priority": ["str","con","dex","wis","cha","int"], "caster_type": "none"},
+    {"key": "barbarian", "name": "Варвар",       "base_ac": 14, "ac_modifier": 0,  "hp_multiplier": 1.30, "hit_die": "d12", "ability_priority": ["str","con","dex","wis","cha","int"], "caster_type": "none"},
     {"key": "bard",      "name": "Бард",         "base_ac": 13, "ac_modifier": 0,  "hp_multiplier": 0.95, "hit_die": "d8",  "ability_priority": ["cha","dex","con","wis","int","str"], "caster_type": "full"},
     {"key": "cleric",    "name": "Жрец",         "base_ac": 16, "ac_modifier": 1,  "hp_multiplier": 1.05, "hit_die": "d8",  "ability_priority": ["wis","con","str","cha","dex","int"], "caster_type": "full"},
     {"key": "druid",     "name": "Друид",        "base_ac": 14, "ac_modifier": 0,  "hp_multiplier": 1.00, "hit_die": "d8",  "ability_priority": ["wis","con","dex","int","cha","str"], "caster_type": "full"},
     {"key": "fighter",   "name": "Воин",         "base_ac": 17, "ac_modifier": 2,  "hp_multiplier": 1.20, "hit_die": "d10", "ability_priority": ["str","con","dex","wis","cha","int"], "caster_type": "none"},
     {"key": "monk",      "name": "Монах",        "base_ac": 15, "ac_modifier": 0,  "hp_multiplier": 1.00, "hit_die": "d8",  "ability_priority": ["dex","wis","con","str","int","cha"], "caster_type": "none"},
     {"key": "paladin",   "name": "Паладин",      "base_ac": 18, "ac_modifier": 2,  "hp_multiplier": 1.15, "hit_die": "d10", "ability_priority": ["str","cha","con","wis","dex","int"], "caster_type": "half"},
-    {"key": "ranger",    "name": "Следопыт",     "base_ac": 14, "ac_modifier": 0,  "hp_multiplier": 1.00, "hit_die": "d10", "ability_priority": ["dex","wis","con","str","int","cha"], "caster_type": "half"},
+    {"key": "ranger",    "name": "Следопыт",     "base_ac": 14, "ac_modifier": 0,  "hp_multiplier": 1.15, "hit_die": "d10", "ability_priority": ["dex","wis","con","str","int","cha"], "caster_type": "half"},
     {"key": "rogue",     "name": "Плут",         "base_ac": 14, "ac_modifier": 0,  "hp_multiplier": 0.90, "hit_die": "d8",  "ability_priority": ["dex","con","int","cha","wis","str"], "caster_type": "none"},
     {"key": "sorcerer",  "name": "Чародей",      "base_ac": 12, "ac_modifier": -1, "hp_multiplier": 0.85, "hit_die": "d6",  "ability_priority": ["cha","con","dex","wis","int","str"], "caster_type": "full"},
     {"key": "warlock",   "name": "Колдун",       "base_ac": 13, "ac_modifier": 0,  "hp_multiplier": 0.90, "hit_die": "d8",  "ability_priority": ["cha","con","dex","wis","int","str"], "caster_type": "pact"},

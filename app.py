@@ -50,6 +50,7 @@ DAMAGE_TYPES = load_json(DATA_DIR / "damage_types.json")["damage_types"]
 CONDITIONS = load_json(DATA_DIR / "damage_types.json")["conditions"]
 CR_TABLE = load_json(DATA_DIR / "cr_table.json")["values"]
 CR_SCALING = load_json(DATA_DIR / "cr_scaling.json")
+LEVEL_SCALING = load_json(DATA_DIR / "level_scaling.json")
 CREATURE_TYPES = load_json(DATA_DIR / "creature_types.json")["creature_types"]
 SIZES = load_json(DATA_DIR / "sizes.json")["sizes"]
 
@@ -90,10 +91,27 @@ def slugify(text: str) -> str:
 def file_to_data_uri(uploaded_file) -> str | None:
     if uploaded_file is None:
         return None
+    # Сбрасываем позицию на случай, если файл уже читался для превью через st.image
+    try:
+        uploaded_file.seek(0)
+    except Exception:
+        pass
     data = uploaded_file.read()
     mime = uploaded_file.type or "image/png"
     b64 = base64.b64encode(data).decode("ascii")
     return f"data:{mime};base64,{b64}"
+
+
+def level_to_cr_label(level: int) -> str:
+    """Приближённый эквивалент КО для NPC-персонажа в Foundry.
+    Используется только для записи в system.details.cr (лента фактов-XP в Foundry)."""
+    mapping = {
+        1: "1/4", 2: "1/2", 3: "1",  4: "1",  5: "2",
+        6: "3",   7: "3",   8: "4",  9: "5",  10: "6",
+        11: "7",  12: "8",  13: "9", 14: "10", 15: "12",
+        16: "13", 17: "14", 18: "16", 19: "18", 20: "20",
+    }
+    return mapping.get(level, "1")
 
 
 def cr_label_to_key(label: str) -> str:
@@ -106,16 +124,27 @@ def cr_label_to_key(label: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Рекомендательные расчёты
+# Рекомендательные расчёты (модальные по режиму «CR» / «LEVEL»)
 # ---------------------------------------------------------------------------
 
-def recommend_abilities(cls: dict, cr_label: str) -> dict[str, int]:
-    """Распределяет [primary, secondary, tertiary, dump] из cr_scaling
-    по приоритетам характеристик класса. Возвращает {str: int, dex: int, ...}."""
-    profile = CR_SCALING["scaling"][cr_label_to_key(cr_label)]["ability_profile"]
-    primary, secondary, tertiary, dump = profile
-    priority = cls["ability_priority"]  # длина 6: [primary, secondary, tertiary, ..., dump]
+MODE_CR = "cr"
+MODE_LEVEL = "level"
 
+
+def scaling_row(mode: str, key: str) -> dict:
+    """Единая точка доступа к строке скалирования для режима CR/Level.
+    Для CR ключ — строковое представление типа '0.25' / '1' / '12'.
+    Для Level ключ — строковой уровень '1'...'20'."""
+    if mode == MODE_CR:
+        return CR_SCALING["scaling"][key]
+    return LEVEL_SCALING["scaling"][key]
+
+
+def recommend_abilities(cls: dict, mode: str, key: str) -> dict[str, int]:
+    """Распределяет [primary, secondary, tertiary, dump] по приоритетам класса."""
+    profile = scaling_row(mode, key)["ability_profile"]
+    primary, secondary, tertiary, dump = profile
+    priority = cls["ability_priority"]
     result: dict[str, int] = {}
     for idx, ability in enumerate(priority):
         if idx == 0:
@@ -129,29 +158,26 @@ def recommend_abilities(cls: dict, cr_label: str) -> dict[str, int]:
     return result
 
 
-def recommend_hp(cls: dict, cr_label: str) -> int:
-    base = CR_SCALING["scaling"][cr_label_to_key(cr_label)]["hp_avg"]
+def recommend_hp(cls: dict, mode: str, key: str) -> int:
+    base = scaling_row(mode, key)["hp_avg"]
     return max(1, round(base * cls["hp_multiplier"]))
 
 
-def recommend_ac(cls: dict, cr_label: str) -> int:
-    """ac_base из cr_scaling корректируется ac_modifier класса.
-    Не должно быть ниже class.base_ac (минимум для соответствующего класса)."""
-    base = CR_SCALING["scaling"][cr_label_to_key(cr_label)]["ac_base"]
+def recommend_ac(cls: dict, mode: str, key: str) -> int:
+    """ac_base корректируется ac_modifier класса, не ниже class.base_ac."""
+    base = scaling_row(mode, key)["ac_base"]
     return max(cls["base_ac"], base + cls["ac_modifier"])
 
 
-def recommend_spell_slots(cls: dict, cr_label: str) -> tuple[dict[str, int], dict | None]:
+def recommend_spell_slots(cls: dict, mode: str, key: str) -> tuple[dict[str, int], dict | None]:
     """Возвращает (slots_dict, pact_dict).
     slots_dict — {'spell1': N, ...} для full/half/third caster.
-    pact_dict — {'value': N, 'level': L} для pact-кастера (warlock) или None.
-    """
+    pact_dict — {'value': N, 'level': L} для pact-кастера или None."""
     caster_type = cls["caster_type"]
     if caster_type == "none":
         return {}, None
 
-    cr_key = cr_label_to_key(cr_label)
-    full_level = CR_SCALING["scaling"][cr_key]["caster_level"]
+    full_level = scaling_row(mode, key)["caster_level"]
 
     if caster_type == "full":
         level = full_level
@@ -160,7 +186,7 @@ def recommend_spell_slots(cls: dict, cr_label: str) -> tuple[dict[str, int], dic
     elif caster_type == "third":
         level = max(1, round(full_level / 3))
     elif caster_type == "pact":
-        level = max(1, min(20, round(full_level / 1)))  # для NPC уравниваем с full
+        level = max(1, min(20, full_level))
         pact = CR_SCALING["pact_slots_by_level"][str(level)]
         return {}, pact
     else:
@@ -255,9 +281,13 @@ def build_npc_json(form: dict[str, Any]) -> dict:
         descriptor = f"{creature_type['name']} ({form['subtype_text'].strip()})"
     else:
         descriptor = creature_type["name"]
+    rank_text = (
+        f"КО {form['cr_label']}" if form.get("mode") == MODE_CR
+        else f"ур. {form.get('level')}"
+    )
     summary = (
         f"<p><strong>{name}</strong> — {descriptor}, {cls['name']} "
-        f"(КД {ac_value}, ХП {hp_value}, КО {form['cr_label']}).</p>"
+        f"(КД {ac_value}, ХП {hp_value}, {rank_text}).</p>"
     )
     bio = form["biography"].strip()
     bio_html = ""
@@ -391,8 +421,8 @@ else:
 
 size = SIZES[size_idx]
 
-# Класс / КО / отношение
-col_cls, col_cr, col_disp = st.columns([1, 1, 1.4])
+# Класс / КО или уровень / отношение
+col_cls, col_rank, col_disp = st.columns([1, 1, 1.4])
 with col_cls:
     class_idx = st.selectbox(
         "Класс", options=list(range(len(CLASSES))),
@@ -400,14 +430,31 @@ with col_cls:
         key="class_idx",
     )
     cls = CLASSES[class_idx]
-with col_cr:
-    cr_idx = st.selectbox(
-        "Класс опасности (КО)",
-        options=list(range(len(CR_TABLE))),
-        format_func=lambda i: f"{CR_TABLE[i]['label']}  ({CR_TABLE[i]['xp']} XP)",
-        index=4,  # CR 1
-        key="cr_idx",
-    )
+with col_rank:
+    if is_monster:
+        cr_idx = st.selectbox(
+            "Класс опасности (КО)",
+            options=list(range(len(CR_TABLE))),
+            format_func=lambda i: f"{CR_TABLE[i]['label']}  ({CR_TABLE[i]['xp']} XP)",
+            index=4,  # CR 1
+            key="cr_idx",
+        )
+        cr_label = CR_TABLE[cr_idx]["label"]
+        cr_value = CR_TABLE[cr_idx]["value"]
+        level = None
+        mode = MODE_CR
+        scaling_key = cr_label_to_key(cr_label)
+    else:
+        level = st.number_input(
+            "Уровень персонажа",
+            min_value=1, max_value=20, value=1, step=1, key="level",
+            help="На уровне основаны HP, КД, характеристики и слоты заклинаний (PHB).",
+        )
+        mode = MODE_LEVEL
+        scaling_key = str(int(level))
+        cr_label = level_to_cr_label(int(level))
+        # Подбираем cr_value из CR_TABLE по аппроксимации
+        cr_value = next((row["value"] for row in CR_TABLE if row["label"] == cr_label), 1)
 with col_disp:
     disposition = st.radio(
         "Отношение к игрокам",
@@ -417,20 +464,17 @@ with col_disp:
         key="disposition",
     )
 
-cr_label = CR_TABLE[cr_idx]["label"]
-cr_value = CR_TABLE[cr_idx]["value"]
-
 # --- 2. Автоматические рекомендации ---
-rec_abilities = recommend_abilities(cls, cr_label)
-rec_hp = recommend_hp(cls, cr_label)
-rec_ac = recommend_ac(cls, cr_label)
-rec_slots, rec_pact = recommend_spell_slots(cls, cr_label)
+rec_abilities = recommend_abilities(cls, mode, scaling_key)
+rec_hp = recommend_hp(cls, mode, scaling_key)
+rec_ac = recommend_ac(cls, mode, scaling_key)
+rec_slots, rec_pact = recommend_spell_slots(cls, mode, scaling_key)
 
-# Динамический суффикс: при смене класса/CR/расы
-# виджеты пересоздаются и подставляют свежие рекомендации,
-# но при этом сохраняются ручные правки в рамках одного контекста.
+# Динамический суффикс: при смене класса/CR/уровня/расы виджеты
+# пересоздаются и подставляют свежие рекомендации.
 race_ctx_key = race["key"] if race else f"{creature_type['key']}-{(subtype_text or '').strip().lower() or 'none'}"
-ctx = f"{cls['key']}__{cr_label}__{race_ctx_key}"
+rank_token = f"cr{cr_label}" if mode == MODE_CR else f"lvl{level}"
+ctx = f"{cls['key']}__{rank_token}__{race_ctx_key}"
 
 st.divider()
 st.subheader("Боевые параметры (рекомендации можно править)")
@@ -440,20 +484,28 @@ with col_ac:
     ac = st.number_input(
         "Класс брони (КД)", min_value=1, max_value=40, value=rec_ac,
         help=(
-            f"Рекомендация для «{cls['name']}» при КО {cr_label}: {rec_ac}. "
-            f"Рассчитан как ac_base({CR_SCALING['scaling'][cr_label_to_key(cr_label)]['ac_base']}) "
+            f"Рекомендация для «{cls['name']}» при {'КО ' + cr_label if mode == MODE_CR else 'ур. ' + str(level)}: {rec_ac}. "
+            f"Рассчитан как ac_base({scaling_row(mode, scaling_key)['ac_base']}) "
             f"+ модификатор класса({cls['ac_modifier']:+d}), "
             f"но не ниже базы класса ({cls['base_ac']})."
         ),
         key=f"ac_{ctx}",
     )
 with col_hp:
+    hp_help_base = scaling_row(mode, scaling_key)["hp_avg"]
+    if mode == MODE_CR:
+        hp_help = (
+            f"Усреднённое HP монстров КО {cr_label} по бестиарию: {hp_help_base}, "
+            f"с множителем класса ({cls['hp_multiplier']}) = {rec_hp}."
+        )
+    else:
+        hp_help = (
+            f"Стандартный PC-расчёт по PHB: ур. {level}, база d8+CON "
+            f"= {hp_help_base}, × множитель класса ({cls['hit_die']}, {cls['hp_multiplier']}) = {rec_hp}."
+        )
     hp = st.number_input(
         "Хиты (HP)", min_value=1, max_value=2000, value=rec_hp,
-        help=(
-            f"Рекомендация: усреднённое HP по КО × множитель класса "
-            f"({cls['hp_multiplier']}) = {rec_hp}."
-        ),
+        help=hp_help,
         key=f"hp_{ctx}",
     )
 with col_speed:
@@ -534,16 +586,32 @@ with st.expander("Устойчивости и невосприимчивости
 st.subheader("Биография и изображения")
 biography = st.text_area("Биография (необязательно)", value="", height=160, key="bio")
 
+PREVIEW_PX = 180  # размер миниатюры превью (≈4 от общей ширины)
+
 col_p, col_t = st.columns(2)
 with col_p:
     portrait_file = st.file_uploader(
         "Портрет (img)", type=["png", "jpg", "jpeg", "webp", "gif"], key="portrait",
     )
+    if portrait_file is not None:
+        try:
+            portrait_file.seek(0)
+        except Exception:
+            pass
+        st.image(portrait_file, width=PREVIEW_PX, caption="Предпросмотр портрета")
 with col_t:
     token_file = st.file_uploader(
         "Токен", type=["png", "jpg", "jpeg", "webp"], key="token",
         help="Если не загружен — будет использован портрет.",
     )
+    if token_file is not None:
+        try:
+            token_file.seek(0)
+        except Exception:
+            pass
+        st.image(token_file, width=PREVIEW_PX, caption="Предпросмотр токена")
+    elif portrait_file is not None:
+        st.caption("Токен не загружен — в Foundry попадёт портрет.")
 
 # --- 6. Кнопка ---
 st.divider()
@@ -575,6 +643,8 @@ if st.button("✨ Собрать JSON", type="primary", use_container_width=True
         "pact_slots": pact_slots,
         "cr_label": cr_label,
         "cr_value": cr_value,
+        "mode": mode,
+        "level": int(level) if level is not None else None,
         "disposition": disposition,
         "dr": dr_keys, "di": di_keys, "dv": dv_keys, "ci": ci_keys,
         "biography": biography,
@@ -608,11 +678,15 @@ with st.sidebar:
         sub = (subtype_text or "—").strip() or "—"
         type_line = f"**Тип:** {creature_type['name']}  \n**Подтип:** {sub}"
         speed_line = "**Скорость:** задаётся вручную"
+    if mode == MODE_CR:
+        rank_line = f"**КО:** {cr_label}"
+    else:
+        rank_line = f"**Уровень:** {level} _(≈КО {cr_label} для Foundry)_"
     st.markdown(
         f"**Класс:** {cls['name']}  \n"
         f"{type_line}  \n"
         f"**Размер:** {size['name']} ({size['width']}×{size['height']})  \n"
-        f"**КО:** {cr_label}  \n\n"
+        f"{rank_line}  \n\n"
         f"**Рекомендация HP:** {rec_hp}  \n"
         f"**Рекомендация КД:** {rec_ac}  \n"
         f"{speed_line}"

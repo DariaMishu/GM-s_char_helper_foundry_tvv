@@ -1,0 +1,25 @@
+{
+  "_comment": "Скейлинг параметров NPC-персонажа по уровню (1–20). Применяется когда чекбокс «Монстр» снят — NPC создаётся как обычный D&D 5e персонаж по правилам PHB. hp_avg рассчитан как стандартный PC-расчёт: на 1-м уровне максимум кубика хитов d8 (8) + модификатор Телосложения +2 = 10; на каждом следующем уровне +avg(d8)+CON = 4.5+2 = 6.5, округлено. Множитель класса hp_multiplier учитывает разные кубики хитов (d6→0.80, d8→1.00, d10→1.15, d12→1.20). ac_base — типовой КД для NPC-персонажа на этом уровне с учётом постепенного улучшения снаряжения. ability_profile — [primary, secondary, tertiary, dump] с учётом стартового набора 16/14/13/12/10/8 и увеличений характеристик (ASI) на уровнях 4/8/12/16/19. caster_level — уровень для расчёта слотов заклинаний (для half-кастеров делится на 2, для third — на 3, для pact используется отдельная таблица).",
+  "scaling": {
+    "1":  {"hp_avg": 10,  "ac_base": 13, "ability_profile": [16, 14, 13, 10], "caster_level": 1,  "proficiency": 2},
+    "2":  {"hp_avg": 17,  "ac_base": 13, "ability_profile": [16, 14, 13, 10], "caster_level": 2,  "proficiency": 2},
+    "3":  {"hp_avg": 23,  "ac_base": 13, "ability_profile": [16, 14, 13, 10], "caster_level": 3,  "proficiency": 2},
+    "4":  {"hp_avg": 30,  "ac_base": 14, "ability_profile": [18, 14, 13, 10], "caster_level": 4,  "proficiency": 2},
+    "5":  {"hp_avg": 36,  "ac_base": 14, "ability_profile": [18, 14, 13, 10], "caster_level": 5,  "proficiency": 3},
+    "6":  {"hp_avg": 43,  "ac_base": 14, "ability_profile": [18, 14, 13, 10], "caster_level": 6,  "proficiency": 3},
+    "7":  {"hp_avg": 50,  "ac_base": 15, "ability_profile": [18, 14, 13, 10], "caster_level": 7,  "proficiency": 3},
+    "8":  {"hp_avg": 56,  "ac_base": 15, "ability_profile": [20, 14, 13, 10], "caster_level": 8,  "proficiency": 3},
+    "9":  {"hp_avg": 63,  "ac_base": 15, "ability_profile": [20, 14, 13, 10], "caster_level": 9,  "proficiency": 4},
+    "10": {"hp_avg": 69,  "ac_base": 16, "ability_profile": [20, 14, 13, 10], "caster_level": 10, "proficiency": 4},
+    "11": {"hp_avg": 76,  "ac_base": 16, "ability_profile": [20, 14, 13, 10], "caster_level": 11, "proficiency": 4},
+    "12": {"hp_avg": 82,  "ac_base": 16, "ability_profile": [20, 16, 13, 10], "caster_level": 12, "proficiency": 4},
+    "13": {"hp_avg": 89,  "ac_base": 17, "ability_profile": [20, 16, 13, 10], "caster_level": 13, "proficiency": 5},
+    "14": {"hp_avg": 95,  "ac_base": 17, "ability_profile": [20, 16, 13, 10], "caster_level": 14, "proficiency": 5},
+    "15": {"hp_avg": 102, "ac_base": 17, "ability_profile": [20, 16, 13, 10], "caster_level": 15, "proficiency": 5},
+    "16": {"hp_avg": 108, "ac_base": 17, "ability_profile": [20, 18, 13, 10], "caster_level": 16, "proficiency": 5},
+    "17": {"hp_avg": 115, "ac_base": 18, "ability_profile": [20, 18, 13, 10], "caster_level": 17, "proficiency": 6},
+    "18": {"hp_avg": 121, "ac_base": 18, "ability_profile": [20, 18, 14, 10], "caster_level": 18, "proficiency": 6},
+    "19": {"hp_avg": 128, "ac_base": 18, "ability_profile": [20, 20, 14, 10], "caster_level": 19, "proficiency": 6},
+    "20": {"hp_avg": 134, "ac_base": 18, "ability_profile": [20, 20, 14, 10], "caster_level": 20, "proficiency": 6}
+  }
+}
