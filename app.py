@@ -50,6 +50,8 @@ DAMAGE_TYPES = load_json(DATA_DIR / "damage_types.json")["damage_types"]
 CONDITIONS = load_json(DATA_DIR / "damage_types.json")["conditions"]
 CR_TABLE = load_json(DATA_DIR / "cr_table.json")["values"]
 CR_SCALING = load_json(DATA_DIR / "cr_scaling.json")
+CREATURE_TYPES = load_json(DATA_DIR / "creature_types.json")["creature_types"]
+SIZES = load_json(DATA_DIR / "sizes.json")["sizes"]
 
 
 # ---------------------------------------------------------------------------
@@ -187,12 +189,23 @@ def build_npc_json(form: dict[str, Any]) -> dict:
     npc["name"] = name
     npc["prototypeToken"]["name"] = name
 
-    # Раса
-    race = form["race"]
-    npc["system"]["details"]["type"]["value"] = race["creature_type"]
-    npc["system"]["details"]["type"]["subtype"] = race["name"]
-    npc["system"]["traits"]["size"] = race["size"]
-    npc["system"]["attributes"]["movement"]["walk"] = int(race["speed"])
+    # Тип существа и подтип (раса / свободный текст)
+    creature_type = form["creature_type"]
+    race = form.get("race")
+    npc["system"]["details"]["type"]["value"] = creature_type["key"]
+    if race:
+        npc["system"]["details"]["type"]["subtype"] = race["name"]
+    else:
+        npc["system"]["details"]["type"]["subtype"] = (form.get("subtype_text") or "").strip()
+
+    # Размер + размер токена
+    size = form["size"]
+    npc["system"]["traits"]["size"] = size["key"]
+    npc["prototypeToken"]["width"] = size["width"]
+    npc["prototypeToken"]["height"] = size["height"]
+
+    # Скорость
+    npc["system"]["attributes"]["movement"]["walk"] = int(form["speed"])
 
     # Класс — отметка spellcasting-характеристики
     cls = form["class"]
@@ -236,8 +249,14 @@ def build_npc_json(form: dict[str, Any]) -> dict:
     npc["system"]["traits"]["ci"]["value"] = form["ci"]
 
     # Биография
+    if race:
+        descriptor = race["name"]
+    elif (form.get("subtype_text") or "").strip():
+        descriptor = f"{creature_type['name']} ({form['subtype_text'].strip()})"
+    else:
+        descriptor = creature_type["name"]
     summary = (
-        f"<p><strong>{name}</strong> — {race['name']}, {cls['name']} "
+        f"<p><strong>{name}</strong> — {descriptor}, {cls['name']} "
         f"(КД {ac_value}, ХП {hp_value}, КО {form['cr_label']}).</p>"
     )
     bio = form["biography"].strip()
@@ -281,26 +300,107 @@ st.caption(
 
 st.subheader("Основное")
 
-col_a, col_b, col_c = st.columns([1.2, 1, 1])
-with col_a:
+# Имя и чекбокс «Монстр»
+col_name, col_monster = st.columns([3, 1])
+with col_name:
     name = st.text_input("Имя персонажа *", value="", max_chars=120, key="name")
-with col_b:
-    race_idx = st.selectbox(
-        "Раса", options=list(range(len(RACES))),
-        format_func=lambda i: f"{RACES[i]['name']} ({RACES[i]['speed']} фт)",
-        key="race_idx",
+with col_monster:
+    is_monster = st.checkbox(
+        "Монстр",
+        value=False,
+        key="is_monster",
+        help=(
+            "Если отмечено — выбираете тип существа (нежить, исчадие и т.д.). "
+            "Если выбран «Гуманоид» — остаётся обычный выбор расы. "
+            "Для других типов появится поле «Подтип» (свободный текст)."
+        ),
     )
-    race = RACES[race_idx]
-with col_c:
+
+# Тип существа / раса / подтип / размер
+DEFAULT_SIZE_KEY = "med"
+DEFAULT_SIZE_IDX = next(
+    (i for i, s in enumerate(SIZES) if s["key"] == DEFAULT_SIZE_KEY), 2
+)
+
+if is_monster:
+    col_type, col_subtype, col_size = st.columns(3)
+    with col_type:
+        ctype_idx = st.selectbox(
+            "Тип существа",
+            options=list(range(len(CREATURE_TYPES))),
+            format_func=lambda i: CREATURE_TYPES[i]["name"],
+            key="ctype_idx",
+        )
+        creature_type = CREATURE_TYPES[ctype_idx]
+    is_humanoid = creature_type["key"] == "humanoid"
+
+    with col_subtype:
+        if is_humanoid:
+            race_idx = st.selectbox(
+                "Раса", options=list(range(len(RACES))),
+                format_func=lambda i: f"{RACES[i]['name']} ({RACES[i]['speed']} фт)",
+                key="race_idx_monster",
+            )
+            race = RACES[race_idx]
+            subtype_text = ""
+        else:
+            race = None
+            subtype_text = st.text_input(
+                "Подтип",
+                value="",
+                max_chars=120,
+                key="subtype_text",
+                help="Свободное описание подтипа (например, «лич», «демон-балор»).",
+            )
+    with col_size:
+        size_idx = st.selectbox(
+            "Размер существа",
+            options=list(range(len(SIZES))),
+            format_func=lambda i: SIZES[i]["name"],
+            index=DEFAULT_SIZE_IDX,
+            key="size_idx",
+        )
+else:
+    # Обычный режим: NPC = персонаж, выбираем расу, тип = «Гуманоид»
+    creature_type = next(
+        (ct for ct in CREATURE_TYPES if ct["key"] == "humanoid"),
+        CREATURE_TYPES[0],
+    )
+    subtype_text = ""
+    col_race, col_size = st.columns(2)
+    with col_race:
+        race_idx = st.selectbox(
+            "Раса", options=list(range(len(RACES))),
+            format_func=lambda i: f"{RACES[i]['name']} ({RACES[i]['speed']} фт)",
+            key="race_idx",
+        )
+        race = RACES[race_idx]
+    with col_size:
+        # По умолчанию подставляем размер расы, если он задан
+        race_size_idx = next(
+            (i for i, s in enumerate(SIZES) if s["key"] == race.get("size")),
+            DEFAULT_SIZE_IDX,
+        )
+        size_idx = st.selectbox(
+            "Размер существа",
+            options=list(range(len(SIZES))),
+            format_func=lambda i: SIZES[i]["name"],
+            index=race_size_idx,
+            key=f"size_idx_race_{race['key']}",
+        )
+
+size = SIZES[size_idx]
+
+# Класс / КО / отношение
+col_cls, col_cr, col_disp = st.columns([1, 1, 1.4])
+with col_cls:
     class_idx = st.selectbox(
         "Класс", options=list(range(len(CLASSES))),
         format_func=lambda i: CLASSES[i]["name"],
         key="class_idx",
     )
     cls = CLASSES[class_idx]
-
-col_d, col_e = st.columns([1, 2])
-with col_d:
+with col_cr:
     cr_idx = st.selectbox(
         "Класс опасности (КО)",
         options=list(range(len(CR_TABLE))),
@@ -308,7 +408,7 @@ with col_d:
         index=4,  # CR 1
         key="cr_idx",
     )
-with col_e:
+with col_disp:
     disposition = st.radio(
         "Отношение к игрокам",
         options=list(DISPOSITION_MAP.keys()),
@@ -329,7 +429,8 @@ rec_slots, rec_pact = recommend_spell_slots(cls, cr_label)
 # Динамический суффикс: при смене класса/CR/расы
 # виджеты пересоздаются и подставляют свежие рекомендации,
 # но при этом сохраняются ручные правки в рамках одного контекста.
-ctx = f"{cls['key']}__{cr_label}__{race['key']}"
+race_ctx_key = race["key"] if race else f"{creature_type['key']}-{(subtype_text or '').strip().lower() or 'none'}"
+ctx = f"{cls['key']}__{cr_label}__{race_ctx_key}"
 
 st.divider()
 st.subheader("Боевые параметры (рекомендации можно править)")
@@ -356,9 +457,15 @@ with col_hp:
         key=f"hp_{ctx}",
     )
 with col_speed:
+    default_speed = int(race["speed"]) if race else 30
+    speed_help = (
+        f"Базовая скорость расы «{race['name']}»: {race['speed']} фт."
+        if race else
+        "Раса не выбрана (монстр не-гуманоид). Значение по умолчанию — 30 фт."
+    )
     speed = st.number_input(
-        "Скорость (фт)", min_value=0, max_value=120, value=int(race["speed"]),
-        help=f"Базовая скорость расы «{race['name']}»: {race['speed']} фт.",
+        "Скорость (фт)", min_value=0, max_value=120, value=default_speed,
+        help=speed_help,
         key=f"speed_{ctx}",
     )
 
@@ -448,13 +555,18 @@ if st.button("✨ Собрать JSON", type="primary", use_container_width=True
     portrait_uri = file_to_data_uri(portrait_file) if portrait_file else None
     token_uri = file_to_data_uri(token_file) if token_file else None
 
-    # Подменяем расовую скорость пользовательским значением
-    race_for_build = dict(race)
-    race_for_build["speed"] = speed
+    # Подменяем расовую скорость пользовательским значением (если раса выбрана)
+    race_for_build = dict(race) if race else None
+    if race_for_build is not None:
+        race_for_build["speed"] = speed
 
     form = {
         "name": name,
+        "creature_type": creature_type,
         "race": race_for_build,
+        "subtype_text": subtype_text,
+        "size": size,
+        "speed": speed,
         "class": cls,
         "ac": ac,
         "hp": hp,
@@ -489,13 +601,21 @@ if st.button("✨ Собрать JSON", type="primary", use_container_width=True
 # --- Sidebar ---
 with st.sidebar:
     st.header("Текущие рекомендации")
+    if race:
+        type_line = f"**Раса:** {race['name']}"
+        speed_line = f"**Скорость (база):** {race['speed']} фт"
+    else:
+        sub = (subtype_text or "—").strip() or "—"
+        type_line = f"**Тип:** {creature_type['name']}  \n**Подтип:** {sub}"
+        speed_line = "**Скорость:** задаётся вручную"
     st.markdown(
         f"**Класс:** {cls['name']}  \n"
-        f"**Раса:** {race['name']}  \n"
+        f"{type_line}  \n"
+        f"**Размер:** {size['name']} ({size['width']}×{size['height']})  \n"
         f"**КО:** {cr_label}  \n\n"
         f"**Рекомендация HP:** {rec_hp}  \n"
         f"**Рекомендация КД:** {rec_ac}  \n"
-        f"**Скорость:** {race['speed']} фт"
+        f"{speed_line}"
     )
     st.divider()
     st.markdown("**Профиль характеристик**")
