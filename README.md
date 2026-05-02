@@ -1,8 +1,10 @@
 # Foundry VTT NPC Builder
 
 Streamlit-приложение для быстрой сборки JSON-файла мастер-персонажа (NPC) для
-[Foundry VTT](https://foundryvtt.com/) с системой **dnd5e**. Готовый файл
+Foundry VTT с системой **dnd5e**. Готовый файл
 импортируется в Foundry через `Sidebar → Actors → Import`.
+
+https://gms-charapper-foundrytvv.streamlit.app/
 
 Тестировалось со связкой Foundry VTT core **13.x** и dnd5e **5.x** (правила 2014).
 
