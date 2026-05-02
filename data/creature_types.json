@@ -1,0 +1,18 @@
+{
+  "creature_types": [
+    {"key": "humanoid",    "name": "Гуманоид"},
+    {"key": "aberration",  "name": "Аберрация"},
+    {"key": "beast",       "name": "Зверь"},
+    {"key": "celestial",   "name": "Небожитель"},
+    {"key": "construct",   "name": "Конструкт"},
+    {"key": "dragon",      "name": "Дракон"},
+    {"key": "elemental",   "name": "Элементаль"},
+    {"key": "fey",         "name": "Фея"},
+    {"key": "fiend",       "name": "Исчадие"},
+    {"key": "giant",       "name": "Великан"},
+    {"key": "monstrosity", "name": "Чудовище"},
+    {"key": "ooze",        "name": "Слизь"},
+    {"key": "plant",       "name": "Растение"},
+    {"key": "undead",      "name": "Нежить"}
+  ]
+}

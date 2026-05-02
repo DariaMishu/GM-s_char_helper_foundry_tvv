@@ -1,0 +1,10 @@
+{
+  "sizes": [
+    {"key": "tiny", "name": "Крошечное (Tiny)",       "width": 0.5, "height": 0.5},
+    {"key": "sm",   "name": "Маленькое (Small)",      "width": 1,   "height": 1},
+    {"key": "med",  "name": "Среднее (Medium)",       "width": 1,   "height": 1},
+    {"key": "lg",   "name": "Большое (Large)",        "width": 2,   "height": 2},
+    {"key": "huge", "name": "Огромное (Huge)",        "width": 3,   "height": 3},
+    {"key": "grg",  "name": "Громадное (Gargantuan)", "width": 4,   "height": 4}
+  ]
+}
