@@ -1,10 +1,11 @@
 {
+  "_comment": "Размеры существа D&D 5e. Поля: width/height — размер токена в клетках Foundry; hit_die/hit_die_avg — расовый/монстровый кубик хитов и его среднее (PHB/MM); hp_multiplier — множитель к базовому HP по CR/уровню (medium=1.0). Множители выведены из соотношений среднего значения hit_die: tiny d4 (2.5), sm d6 (3.5), med d8 (4.5), lg d10 (5.5), huge d12 (6.5), grg d20 (10.5). Эмпирически согласуется с MM: крошечные монстры на CR 1 имеют ~10 HP, огромные ~60 HP, гигантские заметно больше.",
   "sizes": [
-    {"key": "tiny", "name": "Крошечное (Tiny)",       "width": 0.5, "height": 0.5},
-    {"key": "sm",   "name": "Маленькое (Small)",      "width": 1,   "height": 1},
-    {"key": "med",  "name": "Среднее (Medium)",       "width": 1,   "height": 1},
-    {"key": "lg",   "name": "Большое (Large)",        "width": 2,   "height": 2},
-    {"key": "huge", "name": "Огромное (Huge)",        "width": 3,   "height": 3},
-    {"key": "grg",  "name": "Громадное (Gargantuan)", "width": 4,   "height": 4}
+    {"key": "tiny", "name": "Крошечное (Tiny)",       "width": 0.5, "height": 0.5, "hit_die": "d4",  "hit_die_avg": 2.5,  "hp_multiplier": 0.50},
+    {"key": "sm",   "name": "Маленькое (Small)",      "width": 1,   "height": 1,   "hit_die": "d6",  "hit_die_avg": 3.5,  "hp_multiplier": 0.75},
+    {"key": "med",  "name": "Среднее (Medium)",       "width": 1,   "height": 1,   "hit_die": "d8",  "hit_die_avg": 4.5,  "hp_multiplier": 1.00},
+    {"key": "lg",   "name": "Большое (Large)",        "width": 2,   "height": 2,   "hit_die": "d10", "hit_die_avg": 5.5,  "hp_multiplier": 1.25},
+    {"key": "huge", "name": "Огромное (Huge)",        "width": 3,   "height": 3,   "hit_die": "d12", "hit_die_avg": 6.5,  "hp_multiplier": 1.50},
+    {"key": "grg",  "name": "Громадное (Gargantuan)", "width": 4,   "height": 4,   "hit_die": "d20", "hit_die_avg": 10.5, "hp_multiplier": 2.00}
   ]
 }

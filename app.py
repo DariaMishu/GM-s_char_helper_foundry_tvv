@@ -158,9 +158,12 @@ def recommend_abilities(cls: dict, mode: str, key: str) -> dict[str, int]:
     return result
 
 
-def recommend_hp(cls: dict, mode: str, key: str) -> int:
+def recommend_hp(cls: dict, mode: str, key: str, size: dict | None = None) -> int:
+    """Базовый HP по CR/уровню × множитель класса × множитель размера.
+    Размер опционален — если не передан, используется множитель 1.0 (медиум)."""
     base = scaling_row(mode, key)["hp_avg"]
-    return max(1, round(base * cls["hp_multiplier"]))
+    size_mult = size.get("hp_multiplier", 1.0) if size else 1.0
+    return max(1, round(base * cls["hp_multiplier"] * size_mult))
 
 
 def recommend_ac(cls: dict, mode: str, key: str) -> int:
@@ -230,8 +233,16 @@ def build_npc_json(form: dict[str, Any]) -> dict:
     npc["prototypeToken"]["width"] = size["width"]
     npc["prototypeToken"]["height"] = size["height"]
 
-    # Скорость
-    npc["system"]["attributes"]["movement"]["walk"] = int(form["speed"])
+    # Скорость (ходьба + доп. виды: полёт / лазанье / плавание / ройка)
+    movement = npc["system"]["attributes"]["movement"]
+    movement["walk"] = int(form["speed"])
+    extra_movement = form.get("extra_movement") or {}
+    for mkey in ("fly", "climb", "swim", "burrow"):
+        val = int(extra_movement.get(mkey, 0) or 0)
+        # 0 или пустое — оставляем null из шаблона
+        movement[mkey] = val if val > 0 else None
+    # hover имеет смысл только при наличии скорости полёта
+    movement["hover"] = bool(form.get("hover")) and bool(movement.get("fly"))
 
     # Класс — отметка spellcasting-характеристики
     cls = form["class"]
@@ -422,12 +433,21 @@ else:
 size = SIZES[size_idx]
 
 # Класс / КО или уровень / отношение
+# Дефолты зависят от режима: для монстра — «Иное / без класса» и «Враждебный».
+DEFAULT_CLASS_KEY_MONSTER = "other"
+DEFAULT_CLASS_IDX_MONSTER = next(
+    (i for i, c in enumerate(CLASSES) if c["key"] == DEFAULT_CLASS_KEY_MONSTER), 0
+)
+class_widget_key = "class_idx_monster" if is_monster else "class_idx_player"
+class_default_idx = DEFAULT_CLASS_IDX_MONSTER if is_monster else 0
+
 col_cls, col_rank, col_disp = st.columns([1, 1, 1.4])
 with col_cls:
     class_idx = st.selectbox(
         "Класс", options=list(range(len(CLASSES))),
         format_func=lambda i: CLASSES[i]["name"],
-        key="class_idx",
+        index=class_default_idx,
+        key=class_widget_key,
     )
     cls = CLASSES[class_idx]
 with col_rank:
@@ -456,17 +476,21 @@ with col_rank:
         # Подбираем cr_value из CR_TABLE по аппроксимации
         cr_value = next((row["value"] for row in CR_TABLE if row["label"] == cr_label), 1)
 with col_disp:
+    disposition_options = list(DISPOSITION_MAP.keys())
+    # Для монстра по умолчанию выбираем «Враждебный», для PC — «Нейтральный».
+    default_disp = "Враждебный" if is_monster else "Нейтральный"
+    default_disp_idx = disposition_options.index(default_disp)
     disposition = st.radio(
         "Отношение к игрокам",
-        options=list(DISPOSITION_MAP.keys()),
-        index=1,
+        options=disposition_options,
+        index=default_disp_idx,
         horizontal=True,
-        key="disposition",
+        key="disposition_monster" if is_monster else "disposition_player",
     )
 
 # --- 2. Автоматические рекомендации ---
 rec_abilities = recommend_abilities(cls, mode, scaling_key)
-rec_hp = recommend_hp(cls, mode, scaling_key)
+rec_hp = recommend_hp(cls, mode, scaling_key, size)
 rec_ac = recommend_ac(cls, mode, scaling_key)
 rec_slots, rec_pact = recommend_spell_slots(cls, mode, scaling_key)
 
@@ -474,7 +498,7 @@ rec_slots, rec_pact = recommend_spell_slots(cls, mode, scaling_key)
 # пересоздаются и подставляют свежие рекомендации.
 race_ctx_key = race["key"] if race else f"{creature_type['key']}-{(subtype_text or '').strip().lower() or 'none'}"
 rank_token = f"cr{cr_label}" if mode == MODE_CR else f"lvl{level}"
-ctx = f"{cls['key']}__{rank_token}__{race_ctx_key}"
+ctx = f"{cls['key']}__{rank_token}__{race_ctx_key}__{size['key']}"
 
 st.divider()
 st.subheader("Боевые параметры (рекомендации можно править)")
@@ -493,15 +517,20 @@ with col_ac:
     )
 with col_hp:
     hp_help_base = scaling_row(mode, scaling_key)["hp_avg"]
+    size_mult = size.get("hp_multiplier", 1.0)
+    size_note = (
+        f" × размер «{size['name']}» ({size['hit_die']}, ×{size_mult})"
+        if abs(size_mult - 1.0) > 1e-6 else ""
+    )
     if mode == MODE_CR:
         hp_help = (
             f"Усреднённое HP монстров КО {cr_label} по бестиарию: {hp_help_base}, "
-            f"с множителем класса ({cls['hp_multiplier']}) = {rec_hp}."
+            f"× множитель класса ({cls['hp_multiplier']}){size_note} = {rec_hp}."
         )
     else:
         hp_help = (
             f"Стандартный PC-расчёт по PHB: ур. {level}, база d8+CON "
-            f"= {hp_help_base}, × множитель класса ({cls['hit_die']}, {cls['hp_multiplier']}) = {rec_hp}."
+            f"= {hp_help_base}, × множитель класса ({cls['hit_die']}, {cls['hp_multiplier']}){size_note} = {rec_hp}."
         )
     hp = st.number_input(
         "Хиты (HP)", min_value=1, max_value=2000, value=rec_hp,
@@ -566,7 +595,39 @@ else:
     slot_overrides = {}
     pact_slots = None
 
-# --- 4. Устойчивости и невосприимчивости ---
+# --- 4a. Дополнительные виды передвижения ---
+# По умолчанию 0 = не задано (в JSON пробрасывается null/0).
+# Поля соответствуют system.attributes.movement в dnd5e.
+MOVEMENT_FIELDS = [
+    ("fly",    "Полёт (fly)",      "Скорость полёта в футах. 0 — не умеет летать."),
+    ("climb",  "Лазанье (climb)",  "Скорость лазанья. 0 — стандартные правила лазанья (½ скорости)."),
+    ("swim",   "Плавание (swim)",  "Скорость плавания. 0 — стандартные правила (½ скорости)."),
+    ("burrow", "Ройка (burrow)",   "Скорость ройки в земле/песке. 0 — не роет."),
+]
+extra_movement: dict[str, int] = {}
+hover_flag = False
+with st.expander("Дополнительные виды передвижения (полёт, лазанье, плавание)", expanded=False):
+    st.caption(
+        "Заполняйте только те виды, которые есть у персонажа. Пустые (0) не попадут в JSON — "
+        "Foundry получит null в соответствующих полях system.attributes.movement."
+    )
+    move_cols = st.columns(len(MOVEMENT_FIELDS))
+    for col, (mkey, mlabel, mhelp) in zip(move_cols, MOVEMENT_FIELDS):
+        with col:
+            extra_movement[mkey] = st.number_input(
+                mlabel,
+                min_value=0, max_value=240, value=0, step=5,
+                help=mhelp,
+                key=f"move_{mkey}_{ctx}",
+            )
+    hover_flag = st.checkbox(
+        "Парит (hover)",
+        value=False,
+        key=f"move_hover_{ctx}",
+        help="Если отмечено и задана скорость полёта — существо может зависать в воздухе (system.attributes.movement.hover).",
+    )
+
+# --- 4b. Устойчивости и невосприимчивости ---
 with st.expander("Устойчивости и невосприимчивости", expanded=False):
     damage_options = {dt["key"]: dt["name"] for dt in DAMAGE_TYPES}
     condition_options = {c["key"]: c["name"] for c in CONDITIONS}
@@ -646,6 +707,8 @@ if st.button("✨ Собрать JSON", type="primary", use_container_width=True
         "mode": mode,
         "level": int(level) if level is not None else None,
         "disposition": disposition,
+        "extra_movement": extra_movement,
+        "hover": hover_flag,
         "dr": dr_keys, "di": di_keys, "dv": dv_keys, "ci": ci_keys,
         "biography": biography,
         "portrait_uri": portrait_uri,
@@ -707,6 +770,19 @@ with st.sidebar:
         st.markdown(
             f"**Pact magic:** {rec_pact['value']} × ур. {rec_pact['level']}"
         )
+    # Доп. скорости в sidebar (если хотя бы одна отлична от 0)
+    extra_lines = [
+        f"- {label.split(' (')[0]}: **{extra_movement[k]} фт**"
+        for k, label, _ in MOVEMENT_FIELDS
+        if extra_movement.get(k)
+    ]
+    if extra_lines or hover_flag:
+        st.divider()
+        st.markdown("**Доп. передвижение**")
+        for line in extra_lines:
+            st.markdown(line)
+        if hover_flag and extra_movement.get("fly"):
+            st.markdown("- Парит (hover): **да**")
     st.divider()
     st.caption(
         "Все справочники (расы, классы, шкала CR, типы урона) лежат в папке "
